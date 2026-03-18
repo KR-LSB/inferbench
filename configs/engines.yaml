@@ -1,0 +1,46 @@
+# InferBench Engine Configuration
+# All engines run on RTX 5070 Ti (SM_120, CUDA 12.8+)
+
+engines:
+  vllm:
+    enabled: true
+    phase: 1  # Available from Phase 1
+    server_command: >
+      python -m vllm.entrypoints.openai.api_server
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.90
+      --disable-log-requests
+    env:
+      TORCH_CUDA_ARCH_LIST: "12.0+PTX"
+      CUDA_HOME: "/usr/local/cuda"
+    features:
+      prefix_caching: true
+      chunked_prefill: true
+      continuous_batching: true
+    api_base: "http://localhost:8000"
+    api_style: "openai"  # OpenAI-compatible API
+
+  sglang:
+    enabled: true
+    phase: 3  # Added in Phase 3 for comparison
+    server_command: >
+      python -m sglang.launch_server
+      --host 0.0.0.0
+      --port 8001
+      --mem-fraction-static 0.90
+    env:
+      TORCH_CUDA_ARCH_LIST: "12.0+PTX"
+    features:
+      prefix_caching: true
+      chunked_prefill: true
+      continuous_batching: true
+    api_base: "http://localhost:8001"
+    api_style: "openai"
+
+  tensorrt_llm:
+    enabled: false
+    phase: 4  # Optional, Phase 4
+    note: "Requires separate build pipeline. TBD."
+    api_base: "http://localhost:8002"
+    api_style: "openai"

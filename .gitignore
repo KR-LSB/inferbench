@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# Results (raw data gitignored, summaries committed separately)
+results/*.json
+results/*.csv
+results/*.parquet
+!results/.gitkeep
+!results/summaries/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Grafana
+dashboards/grafana/*.db
+
+# Environment
+.env
+.env.local
+
+# Model weights (never commit)
+models/
+*.bin
+*.safetensors
+*.gguf
+*.ggml

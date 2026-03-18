@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "inferbench"
+version = "0.1.0"
+description = "LLM Inference Benchmarking on Consumer Blackwell GPU (RTX 5070 Ti)"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "SeungByeong" },
+]
+keywords = [
+    "llm",
+    "inference",
+    "benchmarking",
+    "vllm",
+    "blackwell",
+    "quantization",
+    "nvfp4",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "httpx>=0.27.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "prometheus-client>=0.21.0",
+    "pyyaml>=6.0",
+    "pandas>=2.2.0",
+    "matplotlib>=3.9.0",
+    "seaborn>=0.13.0",
+    "rich>=13.9.0",
+    "typer>=0.12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/seungbyeong/inferbench"
+Repository = "https://github.com/seungbyeong/inferbench"
+
+[project.scripts]
+inferbench = "src.bench.runner:app"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

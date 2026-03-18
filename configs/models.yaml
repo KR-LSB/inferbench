@@ -1,0 +1,52 @@
+# InferBench Model Configuration
+# Hardware constraint: RTX 5070 Ti 16GB GDDR7 (SM_120)
+# Usable VRAM: ~14.5GB after OS overhead
+
+models:
+  - name: "Qwen/Qwen3-8B"
+    alias: "qwen3-8b"
+    params: "8B"
+    role: "baseline"  # Paper reference model (arXiv:2601.09527)
+    quantizations:
+      - format: "bf16"
+        vram_estimate_gb: 16.0
+        note: "Tight fit, may OOM under high concurrency"
+      - format: "awq"
+        vram_estimate_gb: 5.0
+        note: "W4A16, good memory/quality balance"
+      - format: "nvfp4"
+        vram_estimate_gb: 4.5
+        note: "Blackwell native FP4, hardware-accelerated on SM_120"
+      - format: "mxfp4"
+        vram_estimate_gb: 4.5
+        note: "Microscaling FP4"
+
+  - name: "LGAI-EXAONE/EXAONE-Deep-7.8B"
+    alias: "exaone-deep-7.8b"
+    params: "7.8B"
+    role: "differentiator"  # Korean LLM, M.A.R.S. project connection
+    quantizations:
+      - format: "awq"
+        vram_estimate_gb: 5.0
+      - format: "nvfp4"
+        vram_estimate_gb: 4.4
+        note: "May require manual quantization via llm-compressor"
+
+  - name: "google/gemma-3-12b-it"
+    alias: "gemma3-12b"
+    params: "12B"
+    role: "stretch"  # Only fits with aggressive quantization
+    quantizations:
+      - format: "nvfp4"
+        vram_estimate_gb: 6.8
+        note: "BF16 impossible (24GB). NVFP4 required."
+
+  - name: "meta-llama/Llama-3.1-8B-Instruct"
+    alias: "llama3.1-8b"
+    params: "8B"
+    role: "standard"  # Industry-standard benchmark reference
+    quantizations:
+      - format: "awq"
+        vram_estimate_gb: 5.0
+      - format: "nvfp4"
+        vram_estimate_gb: 4.5

@@ -1,0 +1,79 @@
+# InferBench Docker Compose Stack
+# Launches vLLM server + benchmark runner + monitoring
+#
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose up vllm-server # Start vLLM only
+#   docker compose run benchmark-runner quick  # Run quick benchmark
+
+services:
+  vllm-server:
+    build: .
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - TORCH_CUDA_ARCH_LIST=12.0+PTX
+    ports:
+      - "8000:8000"
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      python3 -m vllm.entrypoints.openai.api_server
+      --host 0.0.0.0
+      --port 8000
+      --model Qwen/Qwen3-8B
+      --quantization nvfp4
+      --gpu-memory-utilization 0.90
+      --enable-prefix-caching
+      --enable-chunked-prefill
+      --disable-log-requests
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s  # Model loading takes time
+
+  benchmark-runner:
+    build: .
+    depends_on:
+      vllm-server:
+        condition: service_healthy
+    volumes:
+      - ./results:/app/results
+      - ./configs:/app/configs
+    command: python3 -m src.bench.runner quick --server http://vllm-server:8000
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=inferbench
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/inference_overview.json
+    volumes:
+      - ./dashboards/grafana:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  hf-cache:
+    name: inferbench-hf-cache
+  prometheus-data:
+  grafana-data:

@@ -1,0 +1,48 @@
+# InferBench Workload Configuration
+# Each workload simulates a real-world LLM serving scenario
+
+workloads:
+  - name: "rag-8k"
+    description: "Document QA with 8k context (Dalgurak-like scenario)"
+    context_length: 8192
+    max_output_tokens: 512
+    concurrency_levels: [1, 4, 8]
+    num_requests_per_level: 50
+    system_prompt: |
+      You are a helpful assistant that answers questions based on the provided context.
+      Always cite specific parts of the context in your answers.
+
+  - name: "rag-16k"
+    description: "Long-context RAG with 16k input"
+    context_length: 16384
+    max_output_tokens: 512
+    concurrency_levels: [1, 4]
+    num_requests_per_level: 30
+    system_prompt: |
+      You are a helpful assistant that answers questions based on the provided context.
+
+  - name: "api-short"
+    description: "Chatbot / code assistant (short context, high concurrency)"
+    context_length: 256
+    max_output_tokens: 256
+    concurrency_levels: [8, 16, 32, 64]
+    num_requests_per_level: 100
+    system_prompt: "You are a helpful assistant."
+
+  - name: "agentic"
+    description: "Multi-turn agent workflow (tool calls, reasoning)"
+    context_length: 2048
+    max_output_tokens: 512
+    concurrency_levels: [4, 8, 16]
+    num_requests_per_level: 50
+    system_prompt: |
+      You are an AI agent that can use tools to complete tasks.
+      Think step by step before acting.
+
+# Benchmark execution settings
+benchmark:
+  warmup_requests: 5
+  cooldown_seconds: 10
+  timeout_seconds: 120
+  output_dir: "results"
+  report_format: "markdown"
