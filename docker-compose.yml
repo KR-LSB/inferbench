@@ -8,11 +8,8 @@
 
 services:
   vllm-server:
-    build: .
-    runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=0
-      - TORCH_CUDA_ARCH_LIST=12.0+PTX
+    image: vllm/vllm-openai:latest
+    ipc: host
     ports:
       - "8000:8000"
     volumes:
@@ -24,22 +21,21 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    # Default: Qwen3-8B-AWQ (verified on RTX 5070 Ti, 5.7 GiB VRAM)
+    # Override model/quantization via environment or CLI
     command: >
-      python3 -m vllm.entrypoints.openai.api_server
+      --model Qwen/Qwen3-8B-AWQ
       --host 0.0.0.0
       --port 8000
-      --model Qwen/Qwen3-8B
-      --quantization nvfp4
       --gpu-memory-utilization 0.90
-      --enable-prefix-caching
-      --enable-chunked-prefill
+      --dtype auto
       --disable-log-requests
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s  # Model loading takes time
+      start_period: 180s  # Model download + loading + CUDA graph capture
 
   benchmark-runner:
     build: .

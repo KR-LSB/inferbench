@@ -1,52 +1,60 @@
 # InferBench Model Configuration
 # Hardware constraint: RTX 5070 Ti 16GB GDDR7 (SM_120)
 # Usable VRAM: ~14.5GB after OS overhead
+# Driver: 595.79, CUDA: 13.2, vLLM: 0.13.0
 
 models:
-  - name: "Qwen/Qwen3-8B"
-    alias: "qwen3-8b"
+  - name: "Qwen/Qwen3-8B-AWQ"
+    alias: "qwen3-8b-awq"
     params: "8B"
     role: "baseline"  # Paper reference model (arXiv:2601.09527)
+    status: "verified"  # 2026-03-18: 5.7 GiB VRAM, awq_marlin kernel
+    quantizations:
+      - format: "awq"
+        vram_measured_gb: 5.7
+        note: "W4A16, auto-converted to awq_marlin. VERIFIED on RTX 5070 Ti."
+
+  - name: "Qwen/Qwen3-8B"
+    alias: "qwen3-8b-bf16"
+    params: "8B"
+    role: "baseline-bf16"
+    status: "untested"
     quantizations:
       - format: "bf16"
         vram_estimate_gb: 16.0
         note: "Tight fit, may OOM under high concurrency"
-      - format: "awq"
-        vram_estimate_gb: 5.0
-        note: "W4A16, good memory/quality balance"
-      - format: "nvfp4"
+      - format: "petit_nvfp4"
         vram_estimate_gb: 4.5
-        note: "Blackwell native FP4, hardware-accelerated on SM_120"
+        note: "vLLM 0.13.0 name for NVFP4. Requires config file. TODO: test."
       - format: "mxfp4"
         vram_estimate_gb: 4.5
-        note: "Microscaling FP4"
+        note: "Microscaling FP4. TODO: test."
 
   - name: "LGAI-EXAONE/EXAONE-Deep-7.8B"
     alias: "exaone-deep-7.8b"
     params: "7.8B"
     role: "differentiator"  # Korean LLM, M.A.R.S. project connection
+    status: "untested"
     quantizations:
       - format: "awq"
         vram_estimate_gb: 5.0
-      - format: "nvfp4"
-        vram_estimate_gb: 4.4
-        note: "May require manual quantization via llm-compressor"
+        note: "TODO: find or create AWQ quantized version"
 
   - name: "google/gemma-3-12b-it"
     alias: "gemma3-12b"
     params: "12B"
     role: "stretch"  # Only fits with aggressive quantization
+    status: "untested"
     quantizations:
-      - format: "nvfp4"
-        vram_estimate_gb: 6.8
-        note: "BF16 impossible (24GB). NVFP4 required."
+      - format: "awq"
+        vram_estimate_gb: 6.5
+        note: "BF16 impossible (24GB). AWQ or FP4 required."
 
   - name: "meta-llama/Llama-3.1-8B-Instruct"
     alias: "llama3.1-8b"
     params: "8B"
     role: "standard"  # Industry-standard benchmark reference
+    status: "untested"
     quantizations:
       - format: "awq"
         vram_estimate_gb: 5.0
-      - format: "nvfp4"
-        vram_estimate_gb: 4.5
