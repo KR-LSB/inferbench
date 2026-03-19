@@ -4,7 +4,7 @@
 
 Benchmarking LLM inference on NVIDIA RTX 5070 Ti (16GB, Blackwell SM_120). Filling the gaps that [arXiv:2601.09527](https://arxiv.org/abs/2601.09527) left open.
 
-**Hardware:** RTX 5070 Ti 16GB GDDR7 · Ryzen 9 9900X · vLLM 0.13.0  
+**Hardware:** RTX 5070 Ti 16GB GDDR7 · Ryzen 9 9900X · vLLM 0.13.0 · SGLang latest  
 **Blog:** [kr-lsb.github.io](https://kr-lsb.github.io/)  
 **License:** MIT
 
@@ -77,6 +77,36 @@ Qwen3-8B-AWQ, context sweep 2k → 4k → 8k → 16k, c=1, 256 max output.
 
 📝 [Blog: KV Cache is the New Memory Wall](https://kr-lsb.github.io/posts/kv-cache-economics/)
 
+### Experiment 4: vLLM vs SGLang — Engine Comparison
+
+Qwen3-8B-AWQ, identical benchmark script for both engines, thinking ON, max_tokens=256.
+
+**Concurrency Benchmark:**
+
+| Metric | c=1 | c=8 | c=16 | c=32 |
+|---|---|---|---|---|
+| **Agg TPS — vLLM** | 121.5 | 551.7 | 968.8 | 969.4 |
+| **Agg TPS — SGLang** | 130.5 | 810.2 | 978.4 | **1,027.8** |
+| **TTFT P50 — vLLM** | **15.4 ms** | **37.3 ms** | **40.5 ms** | 42.2 ms |
+| **TTFT P50 — SGLang** | 20.0 ms | 37.4 ms | 69.2 ms | **39.7 ms** |
+
+**Prefix Caching (RAG scenario, ~1k words context):**
+
+| Metric | vLLM | SGLang |
+|---|---|---|
+| Cached TTFT P50 | **19.8 ms** | 20.7 ms |
+| Decode TPS | 115.6 | **127.7** |
+| Prefill ratio | 0.9% | 1.0% |
+
+**Findings:**
+1. **SGLang wins throughput** — 6-47% higher aggregate TPS across concurrency levels.
+2. **vLLM wins latency stability** — TTFT P95/P50 ratio stays below 1.1x; SGLang shows intermittent spikes (P95=299ms at c=8).
+3. **Prefix caching equally effective** — Both achieve ~20ms cached TTFT. PagedAttention ≈ RadixAttention at this scale.
+4. **SGLang 10% faster decode** — Consistent 127.7 vs 115.6 TPS across all prefix caching runs.
+5. **Both saturate at c=16** — No meaningful throughput gain beyond 16 concurrent requests.
+
+📝 [Blog: vLLM vs SGLang on Blackwell: Which Engine Wins?](https://kr-lsb.github.io/posts/vllm-vs-sglang/)
+
 ---
 
 ## What This Project Adds Over arXiv:2601.09527
@@ -87,6 +117,7 @@ Qwen3-8B-AWQ, context sweep 2k → 4k → 8k → 16k, c=1, 256 max output.
 | Prefix caching | ❌ Not tested | ✅ Up to 57x TTFT reduction |
 | Kernel comparison | ❌ NVFP4 only | ✅ AWQ vs NVFP4 |
 | Context length scaling | ❌ Fixed | ✅ 2k → 4k → 8k → 16k sweep |
+| Engine comparison | ❌ vLLM only | ✅ vLLM vs SGLang |
 | Memory pressure effects | ❌ Not observed | ✅ Degradation documented |
 | Reproducibility | Docker image | ✅ Docker Compose + scripts |
 
@@ -103,20 +134,30 @@ Qwen3-8B-AWQ, context sweep 2k → 4k → 8k → 16k, c=1, 256 max output.
 ### Run a Benchmark
 
 ```bash
-# 1. Start vLLM server
+# 1a. Start vLLM server
 docker run --gpus all --ipc=host -p 8000:8000 \
   -v inferbench-hf-cache:/root/.cache/huggingface \
   vllm/vllm-openai:latest \
   --model Qwen/Qwen3-8B-AWQ \
   --gpu-memory-utilization 0.90 --dtype auto
 
+# 1b. Or start SGLang server
+docker run --gpus all --ipc=host -p 30000:30000 --shm-size 16g \
+  -v inferbench-hf-cache:/root/.cache/huggingface \
+  lmsysorg/sglang:latest \
+  python3 -m sglang.launch_server \
+  --model-path Qwen/Qwen3-8B-AWQ \
+  --host 0.0.0.0 --port 30000 --mem-fraction-static 0.90
+
 # 2. Run concurrency benchmark
-python scripts/concurrent_bench.py --server http://localhost:8000
+python scripts/engine_bench.py --engine vllm --port 8000 --concurrency 1 8 16 32
+python scripts/engine_bench.py --engine sglang --port 30000 --concurrency 1 8 16 32
 
-# 3. Run prefix caching experiment
-python scripts/prefill_decode_bench.py --server http://localhost:8000
+# 3. Run prefix caching comparison
+python scripts/prefix_cache_bench.py --engine vllm --port 8000
+python scripts/prefix_cache_bench.py --engine sglang --port 30000
 
-# 4. Run KV cache economics sweep
+# 4. Run KV cache economics sweep (vLLM)
 python scripts/kv_cache_bench.py --server http://localhost:8000
 ```
 
@@ -135,7 +176,9 @@ inferbench/
 │   ├── quick_bench.py       # Sequential benchmark (c=1)
 │   ├── concurrent_bench.py  # Concurrency scaling (c=1,8,16,32)
 │   ├── prefill_decode_bench.py  # Prefix caching experiment
-│   └── kv_cache_bench.py    # Context length sweep (2k-16k)
+│   ├── kv_cache_bench.py    # Context length sweep (2k-16k)
+│   ├── engine_bench.py      # vLLM vs SGLang concurrency comparison
+│   └── prefix_cache_bench.py    # vLLM vs SGLang prefix caching comparison
 ├── src/
 │   ├── bench/
 │   │   ├── metrics.py       # TTFT, TPS, P50/P95/P99
@@ -144,7 +187,8 @@ inferbench/
 │   └── optimizations/
 │       └── disaggregated.py # Prefill/Decode measurement
 ├── results/                 # JSON benchmark results
-├── docs/                    # Blog drafts
+├── docs/
+│   └── engine_comparison.md # Experiment 4 full analysis
 └── tests/
 ```
 
@@ -159,6 +203,7 @@ inferbench/
 | OS | Windows 11 + WSL2 (Ubuntu 24.04) |
 | Driver | 595.79 (CUDA 13.2) |
 | vLLM | 0.13.0 (`vllm/vllm-openai:latest`) |
+| SGLang | latest (`lmsysorg/sglang:latest`) |
 | Model (AWQ) | `Qwen/Qwen3-8B-AWQ` — awq_marlin kernel, 5.7 GiB |
 | Model (NVFP4) | `RedHatAI/Qwen3-8B-NVFP4` — flashinfer-cutlass, ~4.5 GiB |
 
@@ -169,7 +214,8 @@ inferbench/
 - [x] Experiment 1: AWQ vs NVFP4 quantization comparison
 - [x] Experiment 2: Prefill/Decode disaggregation + prefix caching
 - [x] Experiment 3: KV cache economics (context length scaling)
-- [ ] SGLang comparison (same hardware, same models)
+- [x] Experiment 4: vLLM vs SGLang engine comparison
+- [x] Blog 3: vLLM vs SGLang on Blackwell
 - [ ] EXAONE-Deep-7.8B benchmarks (Korean-language model)
 - [ ] Prometheus + Grafana monitoring dashboard
 - [ ] TensorRT-LLM comparison (optional)
@@ -180,6 +226,7 @@ inferbench/
 
 1. [Benchmarking LLM Inference on RTX 5070 Ti: AWQ vs NVFP4 and Why Prefix Caching Changes Everything](https://kr-lsb.github.io/posts/inferbench-awq-vs-nvfp4/)
 2. [KV Cache is the New Memory Wall: 57x TTFT Reduction at 16k Context](https://kr-lsb.github.io/posts/kv-cache-economics/)
+3. [vLLM vs SGLang on Blackwell: Which Engine Wins on RTX 5070 Ti?](https://kr-lsb.github.io/posts/vllm-vs-sglang/)
 
 ---
 
